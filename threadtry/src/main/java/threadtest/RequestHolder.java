@@ -17,6 +17,11 @@ public class RequestHolder {
         this.payload = payload;
     }
 
+    public RequestHolder(String payload, Integer retryCount) {
+        this.payload = payload;
+        this.retryCount = retryCount;
+    }
+
     public String getPayload() {
         return payload;
     }

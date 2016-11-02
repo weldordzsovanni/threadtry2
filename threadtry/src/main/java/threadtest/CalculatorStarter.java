@@ -28,7 +28,7 @@ public class CalculatorStarter {
 
     private final Queue<RequestHolder> retryHazelcastQueue = new LinkedList<>();
     private final Queue<RequestHolder> errorHazelcastQueue = new LinkedList<>();
-    private final Semaphore innerSemaphore=new Semaphore(WORKER_THREAD);
+    private final Semaphore innerSemaphore = new Semaphore(WORKER_THREAD);
 
     public static void main(String[] args) throws ExecutionException, InterruptedException, TimeoutException {
         new CalculatorStarter().start();
@@ -38,14 +38,13 @@ public class CalculatorStarter {
     public void start() {
         try {
             for (int i = 0; i < Integer.MAX_VALUE; i++) {
-                System.out.println("start");
+                System.out.println("start "+i);
 
-                final RequestHolder nextRequest=determineNextRequest();
+                final RequestHolder nextRequest = determineNextRequest();
                 innerSemaphore.acquire();
                 startCalculating(nextRequest);
 
-
-                System.out.println("end" + i);
+                System.out.println("end " + i);
             }
         } catch (Exception ex) {
             poolCounter.shutdown();
@@ -94,12 +93,12 @@ public class CalculatorStarter {
                     logger("monitoring done " + nextRequest);
                 } catch (TimeoutException e) {
                     logger("TIMEOUT occured " + nextRequest);
-                    if (nextRequest.getRetryCount() > 2) {//new Request cloned from original
-                        errorHazelcastQueue.offer(nextRequest);
+                    if (nextRequest.getRetryCount() > 2) {
+                        errorHazelcastQueue.offer(new RequestHolder(nextRequest.getPayload()));
                         //no chance to stop running thread, like calculatorFuture.cancel()
                     } else {
-                        nextRequest.incrementRetry();
-                        retryHazelcastQueue.offer(nextRequest);
+                        retryHazelcastQueue.offer(new RequestHolder(nextRequest.getPayload(), nextRequest.getRetryCount()+1));
+
                     }
                     //not needed here: calculatorFuture.get();    // innerBlockingQueue.remove(nextRequest);
                 } catch (InterruptedException | ExecutionException e) {
@@ -110,12 +109,16 @@ public class CalculatorStarter {
     }
 
     private RequestHolder determineNextRequest() {
+        final RequestHolder result;
         final RequestHolder retryRequest = retryHazelcastQueue.poll();
-        if(retryRequest!=null){
-            return retryRequest;
-        }else{
-            return  MyHelper.getNextFromHazelcastETLqueue();
+        if (retryRequest != null) {
+            result = retryRequest;
+        } else {
+            result = MyHelper.getNextFromHazelcastETLqueue();
         }
+        logger("NEW request: " + result);
+        return result;
+
     }
 
     private void logger(String log) {
