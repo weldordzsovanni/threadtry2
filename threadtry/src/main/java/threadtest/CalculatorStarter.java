@@ -1,12 +1,14 @@
 package threadtest;
 
+import java.util.LinkedList;
+import java.util.Queue;
 import java.util.Random;
 import java.util.concurrent.*;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /**
- * Created by ZGY on 2016.10.29..
+ * Created by NA on 2016.10.29..
  */
 public class CalculatorStarter {
 
@@ -23,8 +25,10 @@ public class CalculatorStarter {
             0L, TimeUnit.MILLISECONDS,
             new ArrayBlockingQueue<>(WORKER_THREAD));
     private final ExecutorService poolMonitor = Executors.newFixedThreadPool(WORKER_THREAD);
-    private final BlockingQueue<RequestHolder> innerBlockingQueue = new ArrayBlockingQueue<>(2);
 
+    private final Queue<RequestHolder> retryHazelcastQueue = new LinkedList<>();
+    private final Queue<RequestHolder> errorHazelcastQueue = new LinkedList<>();
+    private final Semaphore innerSemaphore=new Semaphore(WORKER_THREAD);
 
     public static void main(String[] args) throws ExecutionException, InterruptedException, TimeoutException {
         new CalculatorStarter().start();
@@ -36,9 +40,10 @@ public class CalculatorStarter {
             for (int i = 0; i < Integer.MAX_VALUE; i++) {
                 System.out.println("start");
 
-                final RequestHolder nextRequest = CalcHelper.getNextFromHazelcastETLqueue();
-                innerBlockingQueue.put(nextRequest);
+                final RequestHolder nextRequest=determineNextRequest();
+                innerSemaphore.acquire();
                 startCalculating(nextRequest);
+
 
                 System.out.println("end" + i);
             }
@@ -49,13 +54,12 @@ public class CalculatorStarter {
         }
     }
 
-
     private void startCalculating(final RequestHolder nextRequest) {
         final CompletableFuture<ResponseHolder> calculatorFuture = CompletableFuture.supplyAsync(new Supplier<ResponseHolder>() {
             @Override
             public ResponseHolder get() {
                 logger("cpuHeavyCalculation start:" + nextRequest);
-                final long calculation = CalcHelper.cpuHeavyCalculation(new Random().nextInt(MAX_CALCULATION));
+                final long calculation = MyHelper.cpuHeavyCalculation(new Random().nextInt(MAX_CALCULATION));
 
                 if (new Random().nextInt(100) > 50) {
                     logger("exception throwed");
@@ -72,7 +76,7 @@ public class CalculatorStarter {
                         } else {
                             logger("FAILED, exception occured: " + throwable.getMessage());
                         }
-                        innerBlockingQueue.remove(nextRequest);
+                        innerSemaphore.release();
                     }
                 });
 
@@ -90,19 +94,28 @@ public class CalculatorStarter {
                     logger("monitoring done " + nextRequest);
                 } catch (TimeoutException e) {
                     logger("TIMEOUT occured " + nextRequest);
-                    if (nextRequest.getRetryCount() > 2) {
-                        //put this element to haselcast ERROR queue
+                    if (nextRequest.getRetryCount() > 2) {//new Request cloned from original
+                        errorHazelcastQueue.offer(nextRequest);
                         //no chance to stop running thread, like calculatorFuture.cancel()
                     } else {
                         nextRequest.incrementRetry();
-                        //put this element BACK to haselcast queue
+                        retryHazelcastQueue.offer(nextRequest);
                     }
                     //not needed here: calculatorFuture.get();    // innerBlockingQueue.remove(nextRequest);
                 } catch (InterruptedException | ExecutionException e) {
-//                    e.printStackTrace();// it does not matter, only timeout is interesting
+//                    e.printStackTrace();// it does not matter, only timeout is interesting, the others could be handled by calculatorFuture
                 }
             }
         }, poolMonitor);
+    }
+
+    private RequestHolder determineNextRequest() {
+        final RequestHolder retryRequest = retryHazelcastQueue.poll();
+        if(retryRequest!=null){
+            return retryRequest;
+        }else{
+            return  MyHelper.getNextFromHazelcastETLqueue();
+        }
     }
 
     private void logger(String log) {

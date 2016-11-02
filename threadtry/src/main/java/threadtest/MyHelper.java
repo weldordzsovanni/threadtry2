@@ -3,15 +3,18 @@ package threadtest;
 import java.util.Random;
 
 /**
- * Created by ZGY on 2016.10.30..
+ * Created by NA on 2016.10.30..
  */
-public class CalcHelper {
+public class MyHelper {
 
     private static Integer generator = 0;
 
     public static RequestHolder getNextFromHazelcastETLqueue() {
         generator++;
         return new RequestHolder(generator.toString());
+    }
+    public static RequestHolder getNextFromDatabase(){
+        return getNextFromHazelcastETLqueue();
     }
 
 

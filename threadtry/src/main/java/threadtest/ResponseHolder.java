@@ -1,7 +1,7 @@
 package threadtest;
 
 /**
- * Created by ZGY on 2016.10.29..
+ * Created by NA on 2016.10.29..
  */
 public class ResponseHolder {
 

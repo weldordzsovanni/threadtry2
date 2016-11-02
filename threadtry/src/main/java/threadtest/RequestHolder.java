@@ -3,7 +3,7 @@ package threadtest;
 import java.util.Objects;
 
 /**
- * Created by ZGY on 2016.10.29..
+ * Created by NA on 2016.10.29..
  */
 public class RequestHolder {
 
