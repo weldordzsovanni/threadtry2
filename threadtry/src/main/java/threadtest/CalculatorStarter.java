@@ -16,14 +16,10 @@ public class CalculatorStarter {
     private static final int TIMEOUT = 2000;
     private static final int WORKER_THREAD = 2;
 //    private final ExecutorService poolCounter = Executors.newFixedThreadPool(WORKER_THREAD);
-
-//    private final ExecutorService poolCounter =  new ThreadPoolExecutor(WORKER_THREAD, WORKER_THREAD,
-//                                  0L, TimeUnit.MILLISECONDS,
-//                                  new SynchronousQueue<>());//rejectec exception amikor vegzett az egyik thread: unning, pool size = 2, active threads = 1, queued tasks = 0, completed tasks = 1]
+//    private final ExecutorService poolCounter = new ThreadPoolExecutor(WORKER_THREAD, WORKER_THREAD, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());//rejectec exception amikor vegzett az egyik thread: unning, pool size = 2, active threads = 1, queued tasks = 0, completed tasks = 1]
 
     private final ExecutorService poolCounter = new ThreadPoolExecutor(WORKER_THREAD, WORKER_THREAD,
-            0L, TimeUnit.MILLISECONDS,
-            new ArrayBlockingQueue<>(WORKER_THREAD));
+            0L, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(WORKER_THREAD));
     private final ExecutorService poolMonitor = Executors.newFixedThreadPool(WORKER_THREAD);
 
     private final Queue<RequestHolder> retryHazelcastQueue = new LinkedList<>();
@@ -37,7 +33,7 @@ public class CalculatorStarter {
 
     public void start() {
         try {
-            for (int i = 0; i < Integer.MAX_VALUE; i++) {
+            for (int i = 0; i < 10; i++) {
                 System.out.println("start "+i);
 
                 final RequestHolder nextRequest = determineNextRequest();
@@ -46,9 +42,9 @@ public class CalculatorStarter {
 
                 System.out.println("end " + i);
             }
-        } catch (Exception ex) {
             poolCounter.shutdown();
             poolMonitor.shutdown();
+        } catch (Exception ex) {
             ex.printStackTrace();
         }
     }
